@@ -47,6 +47,9 @@ def load_data():
         sales_agg['Мои_выкупы'] / sales_agg['Мои_заказы'].replace(0, 1) * 100
     ).round(2)
 
+    # 👇 ДОБАВЬТЕ ЭТОТ БЛОК:
+    queries_agg = queries.groupby('Предмет', as_index=False).agg(
+        Количество_запросов=('Количество запросов', 'sum')
     return market, queries, sales_agg, queries_agg
 
 # ЗАГРУЗКА
