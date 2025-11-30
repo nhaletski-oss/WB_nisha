@@ -51,6 +51,7 @@ def load_data():
     queries_agg = queries.groupby('Предмет', as_index=False).agg(
         Количество_запросов=('Количество запросов', 'sum')
     return market, queries, sales_agg, queries_agg
+    )
 
 # ЗАГРУЗКА
 market, queries, sales_agg, queries_agg = load_data()
