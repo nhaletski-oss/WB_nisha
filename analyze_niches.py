@@ -38,7 +38,7 @@ def load_sales_data():
         st.stop()
     return pd.concat(all_sales, ignore_index=True)
 
-@st.cache_data(ttl=3600)
+@st.cache_data
 def prepare_data():
     market, queries = load_market_data()
     sales = load_sales_data()
@@ -123,7 +123,7 @@ selected_legal = st.sidebar.selectbox("Фильтр по юрлицу", ["Люб
 if selected_legal != "Любое":
     df_filtered = df[df['Юрлицо'] == selected_legal]
 else:
-    # Для "Любое" — оставляем одну строку на предмет, но добавляем столбец "Юрлица" с перечислением всех юрлиц
+    # Для "Любое" — одна строка на предмет, но с перечислением всех юрлиц
     df_grouped = df.groupby('Предмет').agg({
         'Продавцы': 'first',
         'Продавцы с заказами': 'first',
@@ -134,9 +134,7 @@ else:
         'Оборачиваемость за неделю, дни': 'first',
         'Процент выкупа': 'first',
         'Количество_запросов': 'first',
-        'Рекомендация': 'first',
-        'Моя_доля_рынка_%': 'first',
-        'Юрлицо': lambda x: ', '.join(sorted(x.unique()))  # 👈 Список юрлиц
+        'Юрлицо': lambda x: ', '.join(sorted(x.unique())) if len(x.unique()) > 0 else "—"
     }).reset_index()
     df_filtered = df_grouped
 
@@ -162,7 +160,7 @@ st.dataframe(
     ]],
     use_container_width=True,
     height=700,
-    hide_index=True  # 👈 Скрываем индекс
+    hide_index=True
 )
 
 # -------------------------------
