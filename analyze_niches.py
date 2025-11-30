@@ -38,15 +38,14 @@ def load_data():
     # АГРЕГАЦИЯ ПРОДАЖ
     sales_agg = sales.groupby(['Предмет', 'Юрлицо'], as_index=False).agg(
         Мои_заказы=('Заказали на сумму, ₽', 'sum'),
-        Мои_товары=('Артикул WB', 'count'),
-        Мой_процент_выкупа=('Процент выкупа', mean_without_zeros)
+        Мои_выкупы=('Выкупили на сумму, ₽', 'sum'),
+        Мои_товары=('Артикул WB', 'count')
     )
-    sales_agg['Мой_процент_выкупа'] = sales_agg['Мой_процент_выкупа'].fillna(0)
 
-    # Агрегация запросов
-    queries_agg = queries.groupby('Предмет', as_index=False).agg(
-        Количество_запросов=('Количество запросов', 'sum')
-    )
+    # Корректный расчёт процента выкупа
+    sales_agg['Мой_процент_выкупа'] = (
+        sales_agg['Мои_выкупы'] / sales_agg['Мои_заказы'].replace(0, 1) * 100
+    ).round(2)
 
     return market, queries, sales_agg, queries_agg
 
