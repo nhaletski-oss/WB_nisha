@@ -53,7 +53,6 @@ def load_data():
     )
 
     return market, queries, sales_agg, queries_agg
-    )
 
 # ЗАГРУЗКА
 market, queries, sales_agg, queries_agg = load_data()
