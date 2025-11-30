@@ -93,7 +93,6 @@ else:
     result['Юрлица'] = selected_legal
 
 # ЗАПОЛНЯЕМ ПРОПУСКИ — ВСЕГДА ПОСЛЕ ОБЪЕДИНЕНИЯ
-result['Мои_заказы'] = result['Мои_заказы'].fillna(0)
 result['Мои_товары'] = result['Мои_товары'].fillna(0)
 result['Мой_процент_выкупа'] = result['Мой_процент_выкупа'].fillna(0)  # ← ИСПРАВЛЕНО
 result['Мои_заказы'] = pd.to_numeric(result['Мои_заказы'], errors='coerce').fillna(0)
