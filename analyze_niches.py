@@ -30,14 +30,19 @@ def load_data():
         st.stop()
 
     sales = pd.concat(sales_list, ignore_index=True)
+    # Агрегация с игнорированием нулей в "Процент выкупа"
+    def mean_without_zeros(series):
+    # Заменяем 0 на NaN, затем считаем среднее без NaN
+    return series.replace(0, pd.NA).mean(skipna=True)
 
     # АГРЕГАЦИЯ ПРОДАЖ → с явным созданием колонки "Мои_заказы"
     sales_agg = sales.groupby(['Предмет', 'Юрлицо'], as_index=False).agg(
         Мои_заказы=('Заказали на сумму, ₽', 'sum'),
         Мои_товары=('Артикул WB', 'count'),
-        Мой_процент_выкупа=('Процент выкупа', 'mean')  # ← ИСПРАВЛЕНО
+        Мой_процент_выкупа=('Процент выкупа', mean_without_zeros)  # ← ИСПРАВЛЕНО
     )
-
+    # Заполняем NaN (где не было ненулевых выкупов) нулями
+    sales_agg['Мой_процент_выкупа'] = sales_agg['Мой_процент_выкупа'].fillna(0)
     # Агрегация запросов
     queries_agg = queries.groupby('Предмет', as_index=False).agg(
         Количество_запросов=('Количество запросов', 'sum')
