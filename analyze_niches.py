@@ -49,13 +49,16 @@ def load_sales_data():
     return pd.concat(all_sales, ignore_index=True)
 
 # -------------------------------
-# ПОДГОТОВКА ДАННЫХ
+# ОСНОВНАЯ ЛОГИКА
 # -------------------------------
 market, queries = load_market_data()
 sales = load_sales_data()
 
 # Агрегация ваших продаж по предмету
-sales_agg = sales.groupby(['Предмет', 'Юрлицо']).agg(
+sales['Заказали на сумму, ₽'] = pd.to_numeric(sales['Заказали на сумму, ₽'], errors='coerce').fillna(0)
+sales['Выкупили на сумму, ₽'] = pd.to_numeric(sales['Выкупили на сумму, ₽'], errors='coerce').fillna(0)
+
+my_agg = sales.groupby(['Предмет', 'Юрлицо']).agg(
     Мои_заказы=('Заказали на сумму, ₽', 'sum'),
     Мои_товары=('Артикул WB', 'count'),
     Мой_выкуп_процент=('Процент выкупа', 'mean')
@@ -66,8 +69,11 @@ queries_agg = queries.groupby('Предмет')['Количество запро
 queries_agg.rename(columns={'Количество запросов': 'Количество_запросов'}, inplace=True)
 
 # Основа — все предметы из рыночных данных
-base = market[['Предмет', 'Выручка, ₽', '%  прироста выручки', 'Средний чек, ₽',
-               'Оборачиваемость за неделю, дни', 'Процент выкупа']].copy()
+base = market[[
+    'Предмет', 'Продавцы', 'Продавцы с заказами', 'Монополизация, %',
+    'Выручка, ₽', '%  прироста выручки', 'Средний чек, ₽',
+    'Оборачиваемость за неделю, дни', 'Процент выкупа'
+]].copy()
 
 # Объединение
 base = pd.merge(base, my_agg, on='Предмет', how='left')
@@ -94,14 +100,14 @@ min_buyout = st.sidebar.number_input("Мин. выкуп (%)", value=70, step=5)
 # -------------------------------
 # ФИЛЬТРАЦИЯ ПО ЮРЛИЦУ
 # -------------------------------
-legal_entities = sorted(sales_agg["Юрлицо"].dropna().unique())
+legal_entities = sorted(my_agg["Юрлицо"].dropna().unique())
 selected_legal = st.sidebar.selectbox("Фильтр по юрлицу", ["Любое"] + legal_entities)
 
 if selected_legal != "Любое":
     df_filtered = base[base['Юрлицо'] == selected_legal]
 else:
     # Для "Любое" — одна строка на предмет, но с перечислением всех юрлиц
-    combined = sales_agg.groupby('Предмет').agg(
+    combined = my_agg.groupby('Предмет').agg(
         Мои_заказы=('Мои_заказы', 'sum'),
         Юрлица=('Юрлицо', safe_join),
         Мои_товары=('Мои_товары', 'sum'),
@@ -114,8 +120,7 @@ else:
 # РЕКОМЕНДАЦИИ
 # -------------------------------
 def get_recommendation(row):
-    # Проверяем наличие заказов по реальному имени колонки
-    if row['Заказали на сумму, ₽'] == 0:
+    if row['Мои_заказы'] == 0:
         if (row['Количество_запросов'] >= min_queries and
             row['Монополизация, %'] <= max_monopoly and
             row['%  прироста выручки'] >= min_growth and
