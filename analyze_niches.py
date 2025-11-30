@@ -23,7 +23,7 @@ def safe_join(x):
     return ', '.join(sorted(valid)) if len(valid) > 0 else "—"
 
 # -------------------------------
-# ЗАГРУЗКА ДАННЫХ
+# ЗАГРУЗКА И ПОДГОТОВКА ДАННЫХ
 # -------------------------------
 @st.cache_data(ttl=3600)
 def load_market_data():
@@ -73,7 +73,7 @@ base = market[[
 ]].copy()
 
 # Объединение
-base = pd.merge(base, sales_agg, on='Предмет', how='left')
+base = pd.merge(base, my_agg, on='Предмет', how='left')
 base = pd.merge(base, queries_agg, on='Предмет', how='left')
 
 # Заполняем пропуски
@@ -159,7 +159,7 @@ st.dataframe(
     ]],
     use_container_width=True,
     height=700,
-    hide_index=True
+    hide_index=True  # 👈 Скрываем индекс
 )
 
 # -------------------------------
