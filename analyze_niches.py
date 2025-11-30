@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from functools import lru_cache
 
 # -------------------------------
 # Настройка страницы
@@ -18,101 +17,83 @@ def format_number(x):
         return "—"
     return f"{int(x):,}".replace(",", " ")
 
-@st.cache_data(ttl=3600)  # кэш на 1 час
 def load_market_data():
     market = pd.read_excel("пример.xlsx", sheet_name="Предметы")
     queries = pd.read_excel("пример.xlsx", sheet_name="Запросы")
-    queries_agg = queries.groupby('Предмет')['Количество запросов'].sum().reset_index()
-    queries_agg.rename(columns={'Количество запросов': 'Количество_запросов'}, inplace=True)
-    return market, queries_agg
+    return market, queries
 
-@st.cache_data(ttl=3600)
 def load_sales_data():
     files = ["ЦР_Продажи.xlsx", "МС_Продажи.xlsx"]
-    sales_list = []
+    all_sales = []
     for file in files:
         try:
             df = pd.read_excel(file, sheet_name="Товары")
             legal = file.split("_")[0]
             df["Юрлицо"] = legal
-            sales_list.append(df)
+            all_sales.append(df)
         except FileNotFoundError:
             st.warning(f"⚠️ Файл {file} не найден")
-    if not sales_list:
-        st.error("❌ Нет файлов с продажами")
+    if not all_sales:
+        st.error("❌ Нет данных по продажам")
         st.stop()
-    return pd.concat(sales_list, ignore_index=True)
+    return pd.concat(all_sales, ignore_index=True)
 
-@st.cache_data(ttl=3600)
-def prepare_base_data():
-    market, queries_agg = load_market_data()
+@st.cache_data
+def prepare_data():
+    market, queries = load_market_data()
     sales = load_sales_data()
 
-    # Агрегация ваших продаж ПО ПРЕДМЕТУ И ЮРЛИЦУ
-    sales_agg = sales.groupby(['Предмет', 'Юрлицо']).agg(
+    # Агрегация ваших продаж по предмету
+    my_agg = sales.groupby(['Предмет', 'Юрлицо']).agg(
         Мои_заказы=('Заказали на сумму, ₽', 'sum'),
         Мои_товары=('Артикул WB', 'count'),
         Мой_выкуп_процент=('Процент выкупа', 'mean')
     ).round(2).reset_index()
 
-    # Объединение рыночных данных с запросами
+    # Агрегация запросов по предмету
+    queries_agg = queries.groupby('Предмет')['Количество запросов'].sum().reset_index()
+    queries_agg.rename(columns={'Количество запросов': 'Количество_запросов'}, inplace=True)
+
+    # Основа — рыночные данные
     base = market[[
         'Предмет', 'Продавцы', 'Продавцы с заказами', 'Монополизация, %',
         'Выручка, ₽', '%  прироста выручки', 'Средний чек, ₽',
         'Оборачиваемость за неделю, дни', 'Процент выкупа'
-    ]].merge(queries_agg, on='Предмет', how='left')
-    base['Количество_запросов'] = base['Количество_запросов'].fillna(0)
+    ]].copy()
 
-    return base, sales_agg
+    # Объединение
+    base = pd.merge(base, my_agg, on='Предмет', how='left')
+    base = pd.merge(base, queries_agg, on='Предмет', how='left')
+
+    # Заполняем пропуски
+    num_cols = ['Мои_заказы', 'Мои_товары', 'Мой_выкуп_процент', 'Количество_запросов']
+    base[num_cols] = base[num_cols].fillna(0)
+
+    # Расчёт доли рынка
+    base['Моя_доля_рынка_%'] = (base['Мои_заказы'] / base['Выручка, ₽'].replace(0, 1) * 100).round(2)
+
+    return base, queries
 
 # -------------------------------
 # ЗАГРУЗКА ДАННЫХ
 # -------------------------------
-base, sales_agg = prepare_base_data()
+df, df_queries = prepare_data()
 
 # -------------------------------
-# UI: НАСТРОЙКИ И ФИЛЬТРЫ
+# НАСТРОЙКИ РЕКОМЕНДАЦИЙ
 # -------------------------------
-st.sidebar.title("⚙️ Настройки")
-min_growth = st.sidebar.number_input("Мин. рост выручки (%)", value=20)
-max_monopoly = st.sidebar.number_input("Макс. монополизация (%)", value=50)
-min_queries = st.sidebar.number_input("Мин. запросов", value=100000)
-max_turnover = st.sidebar.number_input("Макс. оборачиваемость (дни)", value=30)
-min_buyout = st.sidebar.number_input("Мин. выкуп (%)", value=70)
+st.sidebar.title("⚙️ Настройки рекомендаций")
 
-# Список юрлиц
-legal_entities = sorted(sales_agg["Юрлицо"].unique())
-selected_legal = st.sidebar.selectbox("Юрлицо", ["Любое"] + legal_entities)
+min_growth = st.sidebar.number_input("Мин. рост выручки (%)", value=20, step=5)
+max_monopoly = st.sidebar.number_input("Макс. монополизация (%)", value=50, step=5)
+min_queries = st.sidebar.number_input("Мин. запросов", value=100000, step=10000)
+max_turnover = st.sidebar.number_input("Макс. оборачиваемость (дни)", value=30, step=5)
+min_buyout = st.sidebar.number_input("Мин. выкуп (%)", value=70, step=5)
 
 # -------------------------------
-# ОБЪЕДИНЕНИЕ БЕЗ ДУБЛИРОВАНИЯ
+# РАСЧЁТ РЕКОМЕНДАЦИЙ
 # -------------------------------
-if selected_legal == "Любое":
-    # Агрегируем ВСЕХ юрлиц по предмету
-    sales_combined = sales_agg.groupby('Предмет').agg(
-        Мои_заказы=('Мои_заказы', 'sum'),
-        Юрлица=('Юрлицо', lambda x: ', '.join(sorted(x))),
-        Мои_товары=('Мои_товары', 'sum'),
-        Мой_выкуп_процент=('Мой_выкуп_процент', 'mean')
-    ).round(2).reset_index()
-    result = base.merge(sales_combined, on='Предмет', how='left')
-else:
-    # Фильтруем по юрлицу
-    sales_filtered = sales_agg[sales_agg['Юрлицо'] == selected_legal]
-    result = base.merge(sales_filtered, on='Предмет', how='left')
-
-# Заполняем пропуски
-for col in ['Мои_заказы', 'Мои_товары', 'Мой_выкуп_процент']:
-    result[col] = result[col].fillna(0)
-result['Юрлица'] = result['Юрлица'].fillna("—")
-
-# Расчёт доли рынка
-result['Моя_доля_рынка_%'] = (result['Мои_заказы'] / result['Выручка, ₽'].replace(0, 1) * 100).round(2)
-
-# -------------------------------
-# РЕКОМЕНДАЦИИ
-# -------------------------------
-def get_rec(row):
+def get_recommendation(row):
     if row['Мои_заказы'] == 0:
         if (row['Количество_запросов'] >= min_queries and
             row['Монополизация, %'] <= max_monopoly and
@@ -131,48 +112,54 @@ def get_rec(row):
         else:
             return "📊 Мониторинг"
 
-result['Рекомендация'] = result.apply(get_rec, axis=1)
+df['Рекомендация'] = df.apply(get_recommendation, axis=1)
 
 # -------------------------------
-# ФИЛЬТР ПО РЕКОМЕНДАЦИИ
+# ФИЛЬТРАЦИЯ ПО ЮРЛИЦУ
 # -------------------------------
-rec_options = sorted(result['Рекомендация'].unique())
-selected_recs = st.sidebar.multiselect("Рекомендация", rec_options, default=rec_options)
-result = result[result['Рекомендация'].isin(selected_recs)]
+legal_entities = sorted(df["Юрлицо"].dropna().unique())
+selected_legal = st.sidebar.selectbox("Фильтр по юрлицу", ["Любое"] + legal_entities)
+
+if selected_legal != "Любое":
+    df = df[df['Юрлицо'] == selected_legal]
 
 # -------------------------------
-# ОТОБРАЖЕНИЕ
+# СОРТИРОВКА ПО ВЫРУЧКЕ (числовая!)
+# -------------------------------
+df_sorted = df.sort_values('Выручка, ₽', ascending=False)
+
+# -------------------------------
+# ОТОБРАЖЕНИЕ ТАБЛИЦЫ
 # -------------------------------
 st.title("🔍 Анализ ниш Wildberries")
 
-# Готовим колонки для отображения
-cols = [
-    'Предмет', 'Юрлица', 'Выручка, ₽', 'Количество_запросов', 'Монополизация, %',
-    'Продавцы с заказами', 'Мои_заказы', 'Моя_доля_рынка_%', 'Мой_выкуп_процент', 'Рекомендация'
-]
-result_display = result[cols].copy()
+# Подготовка отображения — форматируем числа, но оставляем их числами для сортировки
+display_df = df_sorted.copy()
 for col in ['Выручка, ₽', 'Количество_запросов', 'Мои_заказы']:
-    result_display[col] = result_display[col].apply(format_number)
+    display_df[col] = display_df[col].apply(format_number)
 
-st.dataframe(result_display, use_container_width=True, height=700)
-
-# -------------------------------
-# ЭКСПОРТ
-# -------------------------------
-if st.sidebar.button("📥 Скачать Excel"):
-    output = result[cols].copy()
-    output['Выручка, ₽'] = output['Выручка, ₽'].astype(str)
-    output['Количество_запросов'] = output['Количество_запросов'].astype(str)
-    output['Мои_заказы'] = output['Мои_заказы'].astype(str)
-    output.to_excel("Анализ_ниш_WB.xlsx", index=False)
-    st.sidebar.success("✅ Файл готов")
+st.dataframe(
+    display_df[[
+        'Предмет', 'Юрлицо', 'Выручка, ₽', 'Количество_запросов', 'Монополизация, %',
+        'Продавцы с заказами', 'Мои_заказы', 'Моя_доля_рынка_%', 'Мой_выкуп_процент', 'Рекомендация'
+    ]],
+    use_container_width=True,
+    height=700
+)
 
 # -------------------------------
 # ЗАПРОСЫ ПО ПРЕДМЕТУ
 # -------------------------------
 st.subheader("🔎 Запросы по предмету")
-queries = pd.read_excel("пример.xlsx", sheet_name="Запросы")
-selected_subject = st.selectbox("Предмет", sorted(result['Предмет'].unique()))
+subjects = sorted(df_sorted['Предмет'].unique())
+selected_subject = st.selectbox("Выберите предмет", subjects)
+
 if selected_subject:
-    q_filtered = queries[queries['Предмет'] == selected_subject].sort_values('Заказали товаров', ascending=False)
-    st.dataframe(q_filtered[['Поисковый запрос', 'Количество запросов', 'Заказали товаров']], use_container_width=True)
+    q_filtered = df_queries[df_queries['Предмет'] == selected_subject].copy()
+    q_filtered = q_filtered.sort_values('Заказали товаров', ascending=False)
+
+    st.dataframe(
+        q_filtered[['Поисковый запрос', 'Количество запросов', 'Заказали товаров']],
+        use_container_width=True,
+        height=600
+    )
