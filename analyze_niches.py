@@ -76,7 +76,8 @@ if 'Артикул WB' not in sales.columns:
 else:
     count_col = 'Артикул WB'
 
-sales_agg = sales.groupby(['Предмет', 'Юрлицo'], as_index=False).agg(
+# ИСПРАВЛЕНА ОПЕЧАТКА: 'Юрлицo' -> 'Юрлицо'
+sales_agg = sales.groupby(['Предмет', 'Юрлицо'], as_index=False).agg(
     Мои_заказы=('Заказали на сумму, ₽', 'sum'),
     Мои_выкупы=('Выкупили на сумму, ₽', 'sum'),
     Мои_товары=(count_col, 'count')
