@@ -264,12 +264,7 @@ if not result.empty and 'Рекомендация' in result.columns:
     selected_recs = st.sidebar.multiselect("Рекомендация", rec_options, default=rec_options)
     result = result[result['Рекомендация'].isin(selected_recs)].copy()
 
-# -------------------------------
-# СОРТИРОВКА
-# -------------------------------
-if not result.empty and 'Выручка, ₽' in result.columns:
-    result = result.sort_values('Выручка, ₽', ascending=False).reset_index(drop=True)
-
+# ------------------------------
 # -------------------------------
 # ОТОБРАЖЕНИЕ
 # -------------------------------
