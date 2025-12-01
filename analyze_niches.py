@@ -37,13 +37,6 @@ def load_data():
 # ЗАГРУЗКА
 try:
     market, queries, sales = load_data()
-    
-    # Показать информацию о загруженных данных
-    st.sidebar.subheader("📊 Информация о данных")
-    st.sidebar.write(f"Колонки в market: {list(market.columns)}")
-    st.sidebar.write(f"Колонки в queries: {list(queries.columns)}")
-    st.sidebar.write(f"Колонки в sales: {list(sales.columns)}")
-    
 except Exception as e:
     st.error(f"❌ Ошибка загрузки данных: {e}")
     st.stop()
