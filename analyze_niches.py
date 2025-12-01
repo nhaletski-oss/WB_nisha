@@ -284,7 +284,6 @@ if not result.empty:
 
         if selected_sort != 'По умолчанию (Выручка)':
             sort_ascending = st.checkbox("По возрастанию", value=False)
-            # сортируем ЧИСЛОВОЙ df, не отображаемый
             sorted_result = sorted_result.sort_values(selected_sort, ascending=sort_ascending)
         else:
             if 'Выручка, ₽' in sorted_result.columns:
@@ -293,51 +292,70 @@ if not result.empty:
     sorted_result = sorted_result.reset_index(drop=True)
 
 # -------------------------------
-# ОТОБРАЖЕНИЕ (форматирование только ДЛЯ ВЫВОДА)
+# ОТОБРАЖЕНИЕ (числа как числа, форматирование через форматтер)
 # -------------------------------
 st.title("🔍 Анализ ниш Wildberries")
 
 if result.empty:
     st.warning("⚠️ Нет данных для отображения")
 else:
-    # Создаем КОПИЮ для форматирования отображения
+    # Используем sorted_result напрямую (без форматирования в строки)
     display_df = sorted_result.copy()
+    
+    # Заменяем NaN и 0 на "—" только для отображения
+    def format_for_display(df):
+        # Копируем DataFrame
+        formatted_df = df.copy()
+        
+        # Заменяем NaN и 0 на "—" для числовых колонок
+        numeric_columns = formatted_df.select_dtypes(include=[np.number]).columns
+        
+        for col in numeric_columns:
+            if col in formatted_df.columns:
+                formatted_df[col] = formatted_df[col].apply(
+                    lambda x: "—" if pd.isna(x) or x == 0 else x
+                )
+        
+        return formatted_df
+    
+    # Форматируем только для отображения
+    display_df_formatted = format_for_display(display_df)
 
-    # Форматирование денежных значений
-    money_cols = ['Выручка, ₽', 'Средний чек, ₽', 'Мои_заказы', 'Мои_выкупы']
-    for col in money_cols:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(format_number)
-
-    # Форматирование количественных значений
-    count_cols = ['Количество_запросов', 'Продавцы', 'Продавцы с заказами', 'Мои_товары']
-    for col in count_cols:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: format_number(x) if pd.notna(x) else "—")
-
-    # Форматирование процентов
-    percent_cols = ['Монополизация, %', 'Моя_доля_рынка_%', 'Мой_процент_выкупа',
-                    '% прироста выручки', 'Процент выкупа']
-    for col in percent_cols:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "—")
-
-    # Форматирование дней
-    day_cols = ['Оборачиваемость за неделю, дни']
-    for col in day_cols:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"{x:.0f}" if pd.notna(x) else "—")
-
-    # Отображение
+    # Определяем колонки для отображения
     possible_columns = ['Предмет', 'Юрлица', 'Выручка, ₽', 'Количество_запросов',
                        'Монополизация, %', 'Продавцы с заказами', 'Мои_заказы',
                        'Моя_доля_рынка_%', 'Мой_процент_выкупа', 'Рекомендация',
                        'Средний чек, ₽', 'Оборачиваемость за неделю, дни', 'Процент выкупа']
 
-    existing_columns = [col for col in possible_columns if col in display_df.columns]
+    existing_columns = [col for col in possible_columns if col in display_df_formatted.columns]
+    
+    # Создаем стилизованный DataFrame для отображения
+    styled_df = display_df_formatted[existing_columns].style.format({
+        # Денежные значения с разделителями тысяч
+        'Выручка, ₽': lambda x: f"{x:,.0f} ₽".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        'Средний чек, ₽': lambda x: f"{x:,.0f} ₽".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        'Мои_заказы': lambda x: f"{x:,.0f} ₽".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        'Мои_выкупы': lambda x: f"{x:,.0f} ₽".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        
+        # Количественные значения с разделителями тысяч
+        'Количество_запросов': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        'Продавцы': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        'Продавцы с заказами': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        'Мои_товары': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) and x != "—" else x,
+        
+        # Процентные значения
+        'Монополизация, %': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) and x != "—" else x,
+        'Моя_доля_рынка_%': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) and x != "—" else x,
+        'Мой_процент_выкупа': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) and x != "—" else x,
+        '% прироста выручки': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) and x != "—" else x,
+        'Процент выкупа': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) and x != "—" else x,
+        
+        # Дни
+        'Оборачиваемость за неделю, дни': lambda x: f"{x:.0f}" if isinstance(x, (int, float)) and x != "—" else x,
+    })
 
-    # Используем st.dataframe для отображения
-    st.dataframe(display_df[existing_columns], use_container_width=True, hide_index=True)
+    # Используем st.dataframe для отображения с форматированием
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     # -------------------------------
     # ЗАПРОСЫ ПО ПРЕДМЕТУ
@@ -385,19 +403,18 @@ else:
                         # Форматирование для отображения
                         display_q = q[available_cols].copy()
                         
-                        # Форматирование чисел
-                        for col in ['Количество запросов', 'Количество запросов (предыдущий период)',
-                                   'Заказали товаров', 'Заказали товаров (предыдущий период)']:
-                            if col in display_q.columns:
-                                display_q[col] = display_q[col].apply(format_number)
-                        
-                        # Форматирование процентов
-                        for col in ['Δ Запросы, %', 'Δ Заказы, %']:
-                            if col in display_q.columns:
-                                display_q[col] = display_q[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "—")
+                        # Форматирование через стиль
+                        styled_q = display_q.style.format({
+                            'Количество запросов': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) else x,
+                            'Количество запросов (предыдущий период)': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) else x,
+                            'Заказали товаров': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) else x,
+                            'Заказали товаров (предыдущий период)': lambda x: f"{x:,.0f}".replace(",", " ") if isinstance(x, (int, float)) else x,
+                            'Δ Запросы, %': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x,
+                            'Δ Заказы, %': lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x,
+                        })
                         
                         st.dataframe(
-                            display_q,
+                            styled_q,
                             use_container_width=True,
                             hide_index=True
                         )
@@ -416,7 +433,7 @@ else:
 # СТАТИСТИКА
 # -------------------------------
 st.sidebar.subheader("📊 Статистика")
-if not result.empty and 'Рекомендация' in result.columns:
+if not result.empty and 'Рекомендация' в result.columns:
     total_categories = len(result)
     enter_categories = len(result[result['Рекомендация'] == "✅ Вход"])
     st.sidebar.metric("Всего категорий", total_categories)
