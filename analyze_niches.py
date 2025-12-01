@@ -78,12 +78,14 @@ selected_legal = st.sidebar.selectbox("Юрлицо", legal_entities)
 
 if selected_legal == "Любое":
     # Агрегация по предмету: сумма заказов, список юрлиц
-    agg_all = sales_agg.groupby('Предмет', as_index=False).agg(
-        Мои_заказы=('Мои_заказы', 'sum'),
-        Юрлица=('Юрлицо', lambda x: ', '.join(sorted(x.unique()))),
-        Мои_товары=('Мои_товары', 'sum'),
-        Мой_процент_выкупа=('Мой_процент_выкупа', 'mean')  # ← ИСПРАВЛЕНО
+    agg_all = sales.groupby(['Предмет', 'Юрлицо'], as_index=False).agg(
+        Мои_заказы=('Заказали на сумму, ₽', 'sum'),
+        Мои_выкупы=('Выкупили на сумму, ₽', 'sum'),
+        Мои_товары=('Артикул WB', 'count')
     )
+    agg_all['Мой_процент_выкупа'] = (
+        agg_all['Мои_выкупы'] / sales_agg['Мои_заказы'].replace(0, 1) * 100
+    ).round(2)
     result = pd.merge(base, agg_all, on='Предмет', how='left')
     result['Юрлица'] = result['Юрлица'].fillna("—")
 else:
