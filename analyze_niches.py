@@ -181,7 +181,7 @@ if selected_legal == "Любое":
     
     result['Юрлица'] = result['Юрлица'].fillna("—")
 else:
-    filtered_sales = sales_agg[sales_agg['Юрлицо'] == selected_legal]
+    filtered_sales = sales_agg[sales_agg['Юрлицo'] == selected_legal]
     
     if 'Предмет' in base.columns and 'Предмет' in filtered_sales.columns:
         result = pd.merge(base, filtered_sales, on='Предмет', how='left')
@@ -264,7 +264,37 @@ if not result.empty and 'Рекомендация' in result.columns:
     selected_recs = st.sidebar.multiselect("Рекомендация", rec_options, default=rec_options)
     result = result[result['Рекомендация'].isin(selected_recs)].copy()
 
-# ------------------------------
+# -------------------------------
+# СОРТИРОВКА
+# -------------------------------
+if not result.empty:
+    # Сохраняем оригинальный DataFrame для сортировки
+    sorted_result = result.copy()
+    
+    # Выбор колонки для сортировки
+    sort_options = ['Выручка, ₽', 'Количество_запросов', 'Монополизация, %', 
+                   'Мои_заказы', 'Моя_доля_рынка_%', 'Мой_процент_выкупа',
+                   '% прироста выручки', 'Оборачиваемость за неделю, дни']
+    
+    # Оставляем только те колонки, которые есть в данных
+    available_sort_cols = [col for col in sort_options if col in sorted_result.columns]
+    
+    if available_sort_cols:
+        # Добавляем опцию "По умолчанию"
+        available_sort_cols = ['По умолчанию (Выручка)'] + available_sort_cols
+        
+        selected_sort = st.selectbox("Сортировать по:", available_sort_cols)
+        
+        if selected_sort != 'По умолчанию (Выручка)':
+            sort_ascending = st.checkbox("По возрастанию", value=False)
+            sorted_result = sorted_result.sort_values(selected_sort, ascending=sort_ascending)
+        else:
+            # Сортировка по умолчанию - по выручке по убыванию
+            if 'Выручка, ₽' in sorted_result.columns:
+                sorted_result = sorted_result.sort_values('Выручка, ₽', ascending=False)
+    
+    sorted_result = sorted_result.reset_index(drop=True)
+
 # -------------------------------
 # ОТОБРАЖЕНИЕ
 # -------------------------------
@@ -273,7 +303,8 @@ st.title("🔍 Анализ ниш Wildberries")
 if result.empty:
     st.warning("⚠️ Нет данных для отображения")
 else:
-    display_df = result.copy()
+    # Создаем отдельный DataFrame для отображения с форматированием
+    display_df = sorted_result.copy()
 
     # Форматирование денежных значений
     money_cols = ['Выручка, ₽', 'Средний чек, ₽', 'Мои_заказы', 'Мои_выкупы']
@@ -309,6 +340,7 @@ else:
     # Отображаем только существующие колонки
     existing_columns = [col for col in possible_columns if col in display_df.columns]
 
+    # Используем st.data_editor для сортировки по клику на заголовки
     st.dataframe(
         display_df[existing_columns],
         use_container_width=True,
@@ -319,8 +351,8 @@ else:
     # ЗАПРОСЫ ПО ПРЕДМЕТУ
     # -------------------------------
     st.subheader("🔎 Запросы по предмету")
-    if 'Предмет' in result.columns and not result['Предмет'].empty:
-        subjects = sorted(result['Предмет'].dropna().unique())
+    if 'Предмет' in sorted_result.columns and not sorted_result['Предмет'].empty:
+        subjects = sorted(sorted_result['Предмет'].dropna().unique())
         
         if subjects:
             selected_subject = st.selectbox("Выберите предмет", subjects)
@@ -362,7 +394,7 @@ else:
                         display_q = q[available_cols].copy()
                         
                         # Форматирование чисел
-                        for col in ['Количество запросов', 'Количество запросов (предыдущий период)',
+                        for col in ['Количество запросов', 'Количество запросов (предходящий период)',
                                    'Заказали товаров', 'Заказали товаров (предыдущий период)']:
                             if col in display_q.columns:
                                 display_q[col] = display_q[col].apply(format_number)
