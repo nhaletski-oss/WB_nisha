@@ -2,16 +2,15 @@ import streamlit as st
 import pandas as pd
 import os
 
-# === ВСТАВКА CSS ДЛЯ ЛЕВОГО ВЫРАВНИВАНИЯ ===
-st.markdown = """
-<style>
-.stDataFrame table td,
-.stDataFrame table th {
-    text-align: left !important;
-}
-</style>
-"""
-st.markdown(st.markdown, unsafe_allow_html=True)
+# === CSS для левого выравнивания в таблицах ===
+st.markdown("""
+    <style>
+    .stDataFrame table td,
+    .stDataFrame table th {
+        text-align: left !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
 
