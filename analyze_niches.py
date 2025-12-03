@@ -4,14 +4,15 @@ import os
 
 st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
 
-st.markdown("""
+# === НАДЕЖНЫЙ СПОСОБ ДОБАВИТЬ CSS ===
+st.html("""
     <style>
     .stDataFrame table td,
     .stDataFrame table th {
         text-align: left !important;
     }
     </style>
-""", unsafe_allow_html=True)
+""")
 
 def format_revenue(x):
     """Форматирует выручку с пробелами как разделитель разрядов (только для отображения)"""
