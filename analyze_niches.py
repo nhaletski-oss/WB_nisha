@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
+st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
 # === CSS для левого выравнивания в таблицах ===
 st.markdown("""
     <style>
@@ -11,8 +12,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
 
 def format_revenue(x):
     """Форматирует выручку с пробелами как разделитель разрядов (только для отображения)"""
