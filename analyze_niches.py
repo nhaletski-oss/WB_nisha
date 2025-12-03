@@ -11,7 +11,7 @@ st.markd = """
 }
 </style>
 """
-st.markdown(st.markd, unsafe_allow_html=True)
+st.markd(st.markd, unsafe_allow_html=True)
 
 st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
 
