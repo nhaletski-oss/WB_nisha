@@ -12,7 +12,7 @@ def format_revenue(x):
 
 @st.cache_data(ttl=3600)
 def load_data():
-    # Рынок — включаем "Карточек товара"
+    # Рынок — включаем "Карточек товара" и "Процент выкупа"
     market = pd.read_excel("пример.xlsx", sheet_name="Предметы")
     queries = pd.read_excel("пример.xlsx", sheet_name="Запросы")
     
@@ -39,7 +39,7 @@ def load_data():
         Мой_процент_выкупа=('Процент выкупа', 'mean')
     )
 
-    # Агрегация запросов (без группировки, т.к. нужны детали по запросу)
+    # Агрегация запросов (сумма по предмету)
     queries_agg = queries.groupby('Предмет', as_index=False).agg(
         Количество_запросов=('Количество запросов', 'sum')
     )
@@ -49,28 +49,31 @@ def load_data():
 # ЗАГРУЗКА
 market, queries, sales_agg, queries_agg = load_data()
 
-# Проверка обязательных колонок в queries
+# Проверка колонок в листе "Запросы"
 required_query_cols = [
     'Предмет', 'Поисковый запрос', 'Количество запросов',
     'Количество запросов (предыдущий период)',
     'Заказали товаров', 'Заказали товаров (предыдущий период)',
     'Конверсия в корзину', 'Конверсия в заказ'
 ]
-missing_cols = [col for col in required_query_cols if col not in queries.columns]
-if missing_cols:
-    st.error(f"❌ В листе 'Запросы' отсутствуют колонки: {missing_cols}")
+missing_query_cols = [col for col in required_query_cols if col not in queries.columns]
+if missing_query_cols:
+    st.error(f"❌ В листе 'Запросы' отсутствуют колонки: {missing_query_cols}")
     st.stop()
 
-# ОБЪЕДИНЕНИЕ — база рынка
-if 'Карточек товара' not in market.columns:
-    st.error("❌ В файле 'пример.xlsx', лист 'Предметы' отсутствует колонка 'Карточек товара'")
-    st.stop()
-
-base = market[[
+# Проверка колонок в листе "Предметы"
+required_market_cols = [
     'Предмет', 'Продавцы', 'Продавцы с заказами', 'Монополизация, %',
     'Выручка, ₽', '%  прироста выручки', 'Средний чек, ₽',
     'Оборачиваемость за неделю, дни', 'Процент выкупа', 'Карточек товара'
-]].copy()
+]
+missing_market_cols = [col for col in required_market_cols if col not in market.columns]
+if missing_market_cols:
+    st.error(f"❌ В листе 'Предметы' отсутствуют колонки: {missing_market_cols}")
+    st.stop()
+
+# База рынка — включаем все нужные колонки
+base = market[required_market_cols].copy()
 
 # Добавляем агрегированные запросы
 base = pd.merge(base, queries_agg, on='Предмет', how='left')
@@ -113,7 +116,7 @@ else:
     result = pd.merge(base, filtered_sales, on='Предмет', how='left')
     result['Юрлица'] = selected_legal
 
-# ЗАПОЛНЯЕМ ПРОПУСКИ
+# Заполнение пропусков
 result['Мои_заказы'] = result['Мои_заказы'].fillna(0)
 result['Мои_товары'] = result['Мои_товары'].fillna(0)
 result['Мой_процент_выкупа'] = result['Мой_процент_выкупа'].fillna(0)
@@ -161,10 +164,24 @@ display_df['Выручка, ₽'] = display_df['Выручка, ₽'].apply(form
 display_df['Количество_запросов'] = display_df['Количество_запросов'].astype(int)
 display_df['Мои_заказы'] = display_df['Мои_заказы'].astype(int)
 
+# Округляем "Процент выкупа" до целого числа и делаем int (если нужно как число, а не строка)
+# Если в исходных данных это проценты (например, 75.3), оставляем как float с округлением
+display_df['Процент выкупа'] = display_df['Процент выкупа'].round(0).fillna(0).astype(int)
+
+# Порядок колонок: "Процент выкупа" сразу после "Юрлица"
 columns_order = [
-    'Предмет', 'Юрлица', 'Выручка, ₽', 'Ср. выкупы/карточки', 'Количество_запросов',
-    'Монополизация, %', 'Продавцы с заказами', 'Мои_заказы',
-    'Моя_доля_рынка_%', 'Мой_процент_выкупа', 'Рекомендация'
+    'Предмет',
+    'Юрлица',
+    'Процент выкупа',
+    'Выручка, ₽',
+    'Ср. выкупы/карточки',
+    'Количество_запросов',
+    'Монополизация, %',
+    'Продавцы с заказами',
+    'Мои_заказы',
+    'Моя_доля_рынка_%',
+    'Мой_процент_выкупа',
+    'Рекомендация'
 ]
 
 st.dataframe(
@@ -194,16 +211,13 @@ if selected_subject:
         q_filtered['Заказали товаров (предыдущий период)'].replace(0, 1) * 100
     ).round(1)
     
-    # Переименование колонок: "предыдущий период" → "пред."
+    # Переименование колонок
     q_filtered.rename(columns={
         'Количество запросов (предыдущий период)': 'Количество запросов (пред.)',
         'Заказали товаров (предыдущий период)': 'Заказали товаров (пред.)'
     }, inplace=True)
     
-    # Сортировка
-    q_filtered = q_filtered.sort_values('Заказали товаров', ascending=False)
-    
-    # Формируем порядок колонок для нижней таблицы
+    # Порядок колонок в нижней таблице
     lower_columns = [
         'Поисковый запрос',
         'Количество запросов',
@@ -216,11 +230,10 @@ if selected_subject:
         'Δ Заказы, %'
     ]
     
-    # Проверка, что все колонки существуют (защита)
+    # Проверка наличия колонок
     missing_lower = [col for col in lower_columns if col not in q_filtered.columns]
     if missing_lower:
-        st.error(f"Не хватает колонок в filtered queries: {missing_lower}")
-        st.write("Доступные колонки:", list(q_filtered.columns))
+        st.error(f"❌ Не хватает колонок в данных запросов: {missing_lower}")
     else:
         st.dataframe(
             q_filtered[lower_columns].style.format({
