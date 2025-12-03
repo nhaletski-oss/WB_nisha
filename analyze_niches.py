@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 # === ВСТАВКА CSS ДЛЯ ЛЕВОГО ВЫРАВНИВАНИЯ ===
-st.markd = """
+st.markdown = """
 <style>
 .stDataFrame table td,
 .stDataFrame table th {
@@ -11,7 +11,7 @@ st.markd = """
 }
 </style>
 """
-st.markd(st.markd, unsafe_allow_html=True)
+st.markdown(st.markdown, unsafe_allow_html=True)
 
 st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
 
