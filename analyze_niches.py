@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 st.set_page_config(page_title="Анализ ниш Wildberries", layout="wide")
-# === CSS для левого выравнивания в таблицах ===
+
 st.markdown("""
     <style>
     .stDataFrame table td,
